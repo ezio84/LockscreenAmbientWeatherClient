@@ -23,8 +23,13 @@ public class WeatherContentProvider extends ContentProvider {
             COLUMN_TEMPERATURE_IMPERIAL
     };
 
+    private WeatherChannelApi mWeatherChannelApi;
+
     @Override
     public boolean onCreate() {
+        if (mWeatherChannelApi == null) {
+            mWeatherChannelApi = new WeatherChannelApi(getContext());
+        }
         return true;
     }
 
@@ -36,22 +41,9 @@ public class WeatherContentProvider extends ContentProvider {
             String[] selectionArgs,
             String sortOrder) {
 
-        /*if (!Utils.isBuildValid(getContext())) {
-            Log.e(TAG, "It seems that you're not using PixelExperience. Please update your sources or in case of cherry-picking our stuff, please revert this and build your own WeatherClient.");
-            return null;
-        }*/
-
         if (DEBUG) Log.i(TAG, "query: " + uri.toString());
-        WeatherChannelApi weatherChannelApi = new WeatherChannelApi(getContext());
-        weatherChannelApi.queryLocation();
-        while (weatherChannelApi.isRunning()) {
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-        WeatherInfo weatherInfo = weatherChannelApi.getResult();
+
+        WeatherInfo weatherInfo = mWeatherChannelApi.getResult();
         if (DEBUG) Log.d(TAG,weatherInfo.toString());
         final MatrixCursor result = new MatrixCursor(PROJECTION_DEFAULT_WEATHER);
         if (weatherInfo != null) {

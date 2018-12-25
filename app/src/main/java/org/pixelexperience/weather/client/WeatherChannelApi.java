@@ -44,9 +44,7 @@ import static org.pixelexperience.weather.client.WeatherInfo.WEATHER_UPDATE_SUCC
 
 public class WeatherChannelApi implements OnFailureListener, OnCanceledListener {
     private String TAG = "WeatherChannelApi";
-    private boolean running;
     private LocationResult mLocationResult;
-    private Handler mHandler;
     private FusedLocationProviderClient mFusedLocationClient;
     private LocationRequest mLocationRequest;
     private Context mContext;
@@ -56,50 +54,31 @@ public class WeatherChannelApi implements OnFailureListener, OnCanceledListener 
         @Override
         public void onLocationResult(LocationResult locationResult) {
             if (DEBUG) Log.d(TAG, "onLocationResult");
-            mHandler.removeCallbacks(removeLocationUpdatesRunnable);
-            mFusedLocationClient.removeLocationUpdates(this);
             mLocationResult = locationResult;
-            running = false;
-        }
-    };
-    private Runnable removeLocationUpdatesRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (DEBUG) Log.d(TAG, "removeLocationUpdatesRunnable");
-            mFusedLocationClient.removeLocationUpdates(locationCallback);
-            mLocationResult = null;
-            running = false;
+
         }
     };
 
     @Override
     public void onFailure(@NonNull Exception e) {
         if (DEBUG) Log.d(TAG, "onFailure");
-        mHandler.removeCallbacks(removeLocationUpdatesRunnable);
-        mFusedLocationClient.removeLocationUpdates(locationCallback);
         mLocationResult = null;
-        running = false;
     }
 
     @Override
     public void onCanceled() {
         if (DEBUG) Log.d(TAG, "onCanceled");
-        mHandler.removeCallbacks(removeLocationUpdatesRunnable);
-        mFusedLocationClient.removeLocationUpdates(locationCallback);
         mLocationResult = null;
-        running = false;
     }
 
     WeatherChannelApi(Context context) {
-        running = false;
-        mHandler = new Handler(Looper.getMainLooper());
-        mLocationRequest = new LocationRequest().setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest = new LocationRequest().create()
+                .setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY)
+                .setInterval(Constants.LOCATION_CHECK_INTERVAL).
+                setFastestInterval(Constants.LOCATION_CHECK_FASTEST_INTERVAL);
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(context);
         mContext = context;
-    }
-
-    boolean isRunning() {
-        return running;
+        startLocationCheck();
     }
 
     private final Interceptor REWRITE_RESPONSE_INTERCEPTOR = new Interceptor() {
@@ -132,7 +111,7 @@ public class WeatherChannelApi implements OnFailureListener, OnCanceledListener 
     };
 
     WeatherInfo getResult() {
-        if (isRunning() || mLocationResult == null || mLocationResult.getLastLocation() == null) {
+        if (mLocationResult == null || mLocationResult.getLastLocation() == null) {
             return new WeatherInfo(WEATHER_UPDATE_ERROR, "", 0, 0);
         }
         Location location = mLocationResult.getLastLocation();
@@ -254,46 +233,10 @@ public class WeatherChannelApi implements OnFailureListener, OnCanceledListener 
         return sunCondition;
     }
 
-    /*private String parseConditionLegacy(String newCondition) {
-        if (DEBUG) Log.d(TAG, "parseCondition: newCondition: " + newCondition);
-        Map<String, String> conditions = new HashMap<>();
-        conditions.put("partly-cloudy", "d,2");
-        conditions.put("partly-cloudy-night", "n,2");
-        conditions.put("mostly-cloudy", "d,0");
-        conditions.put("mostly-cloudy-night", "n,0");
-        conditions.put("clear-night", "n,1");
-        conditions.put("mostly-clear-night", "n,12");
-        conditions.put("sunny", "d,1");
-        conditions.put("mostly-sunny", "d,12");
-        conditions.put("scattered-showers", "d,6");
-        conditions.put("scattered-showers-night", "n,6");
-        conditions.put("rain", "d,6");
-        conditions.put("snow", "d,57");
-        conditions.put("scattered-thunderstorms", "d,8");
-        conditions.put("scattered-thunderstorms-night", "n,8");
-        conditions.put("isolated-thunderstorms", "d,8");
-        conditions.put("isolated-thunderstorms-night", "n,8");
-        conditions.put("thunderstorms", "d,8");
-        conditions.put("foggy", "d,34");
-        conditions.put("windy", mSunCondition + ",0");
-        conditions.put("cloudy", mSunCondition + ",0");
-        for (String condition : conditions.keySet()) {
-            if (newCondition.equals(condition)) {
-                return conditions.get(condition);
-            }
-        }
-        return mSunCondition + ",0";
-    }*/
-
     @SuppressLint("MissingPermission")
-    void queryLocation() {
-        if (running) {
-            return;
-        }
-        running = true;
+    void startLocationCheck() {
         mLocationResult = null;
         mFusedLocationClient.requestLocationUpdates(mLocationRequest, locationCallback, Looper.getMainLooper()).addOnCanceledListener(this).addOnFailureListener(this);
-        mHandler.postDelayed(removeLocationUpdatesRunnable, Constants.LOCATION_QUERY_MAX_TIME);
     }
 }
 
